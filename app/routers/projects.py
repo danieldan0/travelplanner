@@ -8,7 +8,10 @@ router = APIRouter()
 
 @router.post("/", response_model=schemas.ProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)):
-    # Add validation logic later
+    if len(project.places) > 10:
+        raise HTTPException(status_code=400, detail="Cannot add more than 10 places to a project")
+    if len(set(p.external_id for p in project.places)) != len(project.places):
+        raise HTTPException(status_code=400, detail="Duplicate external_id values in places")
     db_project = models.TravelProject(
         name=project.name,
         description=project.description,
@@ -51,14 +54,18 @@ def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session 
         db_project.start_date = project.start_date
 
     if project.places is not None:
+        if len(project.places) > 10:
+            raise HTTPException(status_code=400, detail="Cannot add more than 10 places to a project")
+        if len(set(p.external_id for p in project.places)) != len(project.places):
+            raise HTTPException(status_code=400, detail="Duplicate external_id values in places")
         existing = {p.id: p for p in db_project.places}
         seen_ids: set[int] = set()
 
         for place in project.places:
             if place.id is not None and place.id in existing:
                 db_place = existing[place.id]
-                if place.external_id is not None:
-                    db_place.external_id = place.external_id
+                if place.external_id is not None and place.external_id != db_place.external_id:
+                    raise HTTPException(status_code=400, detail="external_id cannot be updated")
                 if place.notes is not None:
                     db_place.notes = place.notes
                 if place.visited is not None:
