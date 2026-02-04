@@ -40,6 +40,7 @@ class ProjectOut(BaseModel):
     description: Optional[str]
     start_date: Optional[date]
     places: List[PlaceOut]
+    completed: bool
 
     class Config:
         from_attributes = True

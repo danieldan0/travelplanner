@@ -26,19 +26,19 @@ def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
-    return db_project
+    return project_to_out(db_project)
 
 @router.get("/", response_model=list[schemas.ProjectOut])
 def get_projects(db: Session = Depends(get_db)):
     projects = db.query(models.TravelProject).all()
-    return projects
+    return [project_to_out(project) for project in projects]
 
 @router.get("/{project_id}", response_model=schemas.ProjectOut)
 def get_project(project_id: int, db: Session = Depends(get_db)):
     db_project = db.query(models.TravelProject).filter(models.TravelProject.id == project_id).first()
     if not db_project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    return db_project
+    return project_to_out(db_project)
 
 @router.put("/{project_id}", response_model=schemas.ProjectOut)
 def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session = Depends(get_db)):
@@ -73,10 +73,10 @@ def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session 
                 seen_ids.add(place.id)
             else:
                 db.add(models.Place(
-                    external_id=place.external_id,
-                    notes=place.notes,
-                    visited=place.visited or False,
-                    project_id=project_id
+                    external_id = place.external_id,
+                    notes = place.notes,
+                    visited = place.visited or False,
+                    project_id = project_id
                 ))
 
         for place_id, db_place in existing.items():
@@ -86,7 +86,7 @@ def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session 
 
     db.commit()
     db.refresh(db_project)
-    return db_project
+    return project_to_out(db_project)
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(project_id: int, db: Session = Depends(get_db)):
@@ -102,3 +102,21 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
     db.delete(db_project)
     db.commit()
     return
+
+def project_to_out(project: models.TravelProject) -> schemas.ProjectOut:
+    return schemas.ProjectOut(
+        id = project.id,
+        name = project.name,
+        description = project.description,
+        start_date = project.start_date,
+        places = [
+            schemas.PlaceOut(
+                id = place.id,
+                name = place.name,
+                external_id = place.external_id,
+                notes = place.notes,
+                visited = place.visited
+            ) for place in project.places
+        ],
+        completed = all(place.visited for place in project.places)
+    )
