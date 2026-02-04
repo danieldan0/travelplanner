@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from ..services.art_api import validate_artwork
+
 from ..dependencies import get_db
 from .. import models, schemas
 
@@ -21,11 +23,12 @@ def create_place(project_id: int, place: schemas.PlaceCreate, db: Session = Depe
     place_count = db.query(models.Place).filter(models.Place.project_id == project_id).count()
     if place_count >= 10:
         raise HTTPException(status_code=400, detail="Cannot add more than 10 places to a project")
-    # Add external id validation later
+    data = validate_artwork(place.external_id)
     db_place = models.Place(
-        external_id=place.external_id, 
-        notes=place.notes, 
-        project_id=project_id
+        external_id = place.external_id,
+        name = data.get("title"),
+        notes = place.notes,
+        project_id = project_id
     )
     db.add(db_place)
     db.commit()

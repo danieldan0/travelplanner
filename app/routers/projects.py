@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..dependencies import get_db
 from .. import models, schemas
+from ..services.art_api import validate_artwork
 
 router = APIRouter()
 
@@ -13,16 +14,19 @@ def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)
     if len(set(p.external_id for p in project.places)) != len(project.places):
         raise HTTPException(status_code=400, detail="Duplicate external_id values in places")
     db_project = models.TravelProject(
-        name=project.name,
-        description=project.description,
-        start_date=project.start_date,
-        places=[
-            models.Place(
-                external_id=place.external_id,
-                notes=place.notes
-            ) for place in project.places
-        ]
+        name = project.name,
+        description = project.description,
+        start_date = project.start_date,
     )
+    for place in project.places:
+        data = validate_artwork(place.external_id)
+        db_place = models.Place(
+            external_id = place.external_id,
+            name = data.get("title"),
+            notes = place.notes,
+            project = db_project
+        )
+        db_project.places.append(db_place)
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
@@ -56,8 +60,6 @@ def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session 
     if project.places is not None:
         if len(project.places) > 10:
             raise HTTPException(status_code=400, detail="Cannot add more than 10 places to a project")
-        if len(set(p.external_id for p in project.places)) != len(project.places):
-            raise HTTPException(status_code=400, detail="Duplicate external_id values in places")
         existing = {p.id: p for p in db_project.places}
         seen_ids: set[int] = set()
 
@@ -72,12 +74,19 @@ def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session 
                     db_place.visited = place.visited
                 seen_ids.add(place.id)
             else:
-                db.add(models.Place(
+                if place.external_id is None:
+                    raise HTTPException(status_code=400, detail="external_id is required for new places")
+                if place.external_id in [p.external_id for p in db_project.places]:
+                    raise HTTPException(status_code=400, detail="Place with this external_id already exists in the project")
+                data = validate_artwork(place.external_id)
+                db_place = models.Place(
                     external_id = place.external_id,
+                    name = data.get("title"),
                     notes = place.notes,
-                    visited = place.visited or False,
-                    project_id = project_id
-                ))
+                    project = db_project,
+                    visited = place.visited if place.visited is not None else False
+                )
+                db_project.places.append(db_place)
 
         for place_id, db_place in existing.items():
             if place_id not in seen_ids:

@@ -5,12 +5,14 @@ from datetime import date
 class PlaceCreate(BaseModel):
     external_id: int
     notes: Optional[str] = None
+    name: Optional[str] = None
 
 class PlaceUpdate(BaseModel):
     id: Optional[int] = None
     notes: Optional[str] = None
     visited: Optional[bool] = None
     external_id: Optional[int] = None
+    name: Optional[str] = None
 
 class PlaceOut(BaseModel):
     id: int
