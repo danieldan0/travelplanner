@@ -37,3 +37,61 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return db_project
 
+@router.put("/{project_id}", response_model=schemas.ProjectOut)
+def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session = Depends(get_db)):
+    db_project = db.query(models.TravelProject).filter(models.TravelProject.id == project_id).first()
+    if not db_project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    
+    if project.name is not None:
+        db_project.name = project.name
+    if project.description is not None:
+        db_project.description = project.description
+    if project.start_date is not None:
+        db_project.start_date = project.start_date
+
+    if project.places is not None:
+        existing = {p.id: p for p in db_project.places}
+        seen_ids: set[int] = set()
+
+        for place in project.places:
+            if place.id is not None and place.id in existing:
+                db_place = existing[place.id]
+                if place.external_id is not None:
+                    db_place.external_id = place.external_id
+                if place.notes is not None:
+                    db_place.notes = place.notes
+                if place.visited is not None:
+                    db_place.visited = place.visited
+                seen_ids.add(place.id)
+            else:
+                db.add(models.Place(
+                    external_id=place.external_id,
+                    notes=place.notes,
+                    visited=place.visited or False,
+                    project_id=project_id
+                ))
+
+        for place_id, db_place in existing.items():
+            if place_id not in seen_ids:
+                db.delete(db_place)
+
+
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project(project_id: int, db: Session = Depends(get_db)):
+    db_project = db.query(models.TravelProject).filter(models.TravelProject.id == project_id).first()
+    if not db_project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    visited_place = db.query(models.Place).filter(
+        models.Place.project_id == project_id,
+        models.Place.visited == True
+    ).first()
+    if visited_place:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete project with visited places")
+    db.delete(db_project)
+    db.commit()
+    return

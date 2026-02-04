@@ -7,8 +7,10 @@ class PlaceCreate(BaseModel):
     notes: Optional[str] = None
 
 class PlaceUpdate(BaseModel):
+    id: Optional[int] = None
     notes: Optional[str] = None
     visited: Optional[bool] = None
+    external_id: Optional[int] = None
 
 class PlaceOut(BaseModel):
     id: int
@@ -30,7 +32,7 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     start_date: Optional[date] = None
-    places: Optional[List[PlaceCreate]] = None
+    places: Optional[List[PlaceUpdate]] = None
 
 class ProjectOut(BaseModel):
     id: int
