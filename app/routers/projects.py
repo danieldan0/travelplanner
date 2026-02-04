@@ -9,6 +9,8 @@ router = APIRouter()
 
 @router.post("/", response_model=schemas.ProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)):
+    if len(project.places) == 0:
+        raise HTTPException(status_code=400, detail="At least one place is required to create a project")
     if len(project.places) > 10:
         raise HTTPException(status_code=400, detail="Cannot add more than 10 places to a project")
     if len(set(p.external_id for p in project.places)) != len(project.places):
@@ -58,6 +60,8 @@ def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session 
         db_project.start_date = project.start_date
 
     if project.places is not None:
+        if len(project.places) == 0:
+            raise HTTPException(status_code=400, detail="At least one place is required in a project")
         if len(project.places) > 10:
             raise HTTPException(status_code=400, detail="Cannot add more than 10 places to a project")
         existing = {p.id: p for p in db_project.places}
@@ -76,7 +80,7 @@ def update_project(project_id: int, project: schemas.ProjectUpdate, db: Session 
             else:
                 if place.external_id is None:
                     raise HTTPException(status_code=400, detail="external_id is required for new places")
-                if place.external_id in [p.external_id for p in db_project.places]:
+                if place.external_id in [p.external_id for p in project.places] or place.external_id in [p.external_id for p in db_project.places]:
                     raise HTTPException(status_code=400, detail="Place with this external_id already exists in the project")
                 data = validate_artwork(place.external_id)
                 db_place = models.Place(
